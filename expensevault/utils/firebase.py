@@ -1,21 +1,40 @@
+import json
 import os
 
 import firebase_admin
-from firebase_admin import credentials, auth
+from firebase_admin import auth, credentials
 
 
 def get_firebase_app():
     try:
         return firebase_admin.get_app()
     except ValueError:
-        service_account_path = os.getenv("FIREBASE_SERVICE_ACCOUNT_PATH")
+        service_account_json = os.getenv(
+            "FIREBASE_SERVICE_ACCOUNT_JSON"
+        )
 
-        if not service_account_path:
-            raise ValueError(
-                "FIREBASE_SERVICE_ACCOUNT_PATH is not configured."
+        if service_account_json:
+            service_account_info = json.loads(
+                service_account_json
             )
 
-        credential = credentials.Certificate(service_account_path)
+            credential = credentials.Certificate(
+                service_account_info
+            )
+
+        else:
+            service_account_path = os.getenv(
+                "FIREBASE_SERVICE_ACCOUNT_PATH"
+            )
+
+            if not service_account_path:
+                raise ValueError(
+                    "Firebase credentials are not configured."
+                )
+
+            credential = credentials.Certificate(
+                service_account_path
+            )
 
         return firebase_admin.initialize_app(credential)
 
