@@ -198,26 +198,32 @@ const handleResetPassword = async () => {
   }
 };
 
-  const goBack = () => {
-    setError("");
-    setSuccess("");
+const goBack = () => {
+  setError("");
+  setSuccess("");
 
-    if (step === "otp") {
-      clearRecaptcha();
-      confirmationResultRef.current = null;
-      setOtp("");
-      setStep("phone");
-      return;
-    }
+  if (step === "otp") {
+    clearRecaptcha();
+    confirmationResultRef.current = null;
+    setOtp("");
+    setStep("phone");
+    return;
+  }
 
-    if (step === "password") {
-      setOtp("");
-      setStep("otp");
-      return;
-    }
+  if (step === "password") {
+    setOtp("");
+    setStep("otp");
+    return;
+  }
 
+  const token = localStorage.getItem("access_token");
+
+  if (token) {
+    window.location.href = "/profile";
+  } else {
     window.location.href = "/login";
-  };
+  }
+};
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
