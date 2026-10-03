@@ -22,6 +22,7 @@ SECRET_KEY = os.getenv(
 DEBUG = os.getenv("DEBUG", "True") == "True"
 
 ALLOWED_HOSTS = [
+    "expense-vault-idh9.onrender.com",
     "localhost",
     "127.0.0.1",
 ]
@@ -119,30 +120,44 @@ WSGI_APPLICATION = "config.wsgi.application"
 # DATABASE
 # =========================================================
 
+# DATABASES = {
+
+#     "default": {
+
+#         "ENGINE":
+#             "django.db.backends.postgresql",
+
+#         "NAME":
+#             os.getenv("DB_NAME"),
+
+#         "USER":
+#             os.getenv("DB_USER"),
+
+#         "PASSWORD":
+#             os.getenv("DB_PASSWORD"),
+
+#         "HOST":
+#             os.getenv("DB_HOST", "localhost"),
+
+#         "PORT":
+#             os.getenv("DB_PORT", "5432"),
+#     }
+# }
+
+
 DATABASES = {
-
     "default": {
-
-        "ENGINE":
-            "django.db.backends.postgresql",
-
-        "NAME":
-            os.getenv("DB_NAME"),
-
-        "USER":
-            os.getenv("DB_USER"),
-
-        "PASSWORD":
-            os.getenv("DB_PASSWORD"),
-
-        "HOST":
-            os.getenv("DB_HOST", "localhost"),
-
-        "PORT":
-            os.getenv("DB_PORT", "5432"),
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": os.getenv("DB_NAME", "neondb"),
+        "USER": os.getenv("DB_USER"),
+        "PASSWORD": os.getenv("DB_PASSWORD"),
+        "HOST": os.getenv("DB_HOST"),
+        "PORT": os.getenv("DB_PORT", "5432"),
+        "OPTIONS": {
+            "sslmode": "require",
+        },
     }
 }
-
 
 # =========================================================
 # CUSTOM USER
@@ -259,6 +274,11 @@ STATIC_URL = "static/"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 CORS_ALLOWED_ORIGINS = [
+    "https://expense-vault-dusky.vercel.app",
     "http://localhost:5173",
     "http://127.0.0.1:5173",
+]
+
+CSRF_TRUSTED_ORIGINS = [
+    "https://expense-vault-dusky.vercel.app",
 ]
