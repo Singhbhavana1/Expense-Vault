@@ -35,7 +35,7 @@ interface ExpenseDialogProps {
     expense_date: string;
     category: number | null;
   }) => Promise<void>;
-  trigger?: React.ReactNode;
+  trigger?: React.ReactElement;
 }
 
 export default function ExpenseDialog({
@@ -132,14 +132,16 @@ export default function ExpenseDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        {trigger ?? (
-          <Button className="rounded-xl">
-            <Plus className="mr-2 h-4 w-4" />
-            Add Expense
-          </Button>
-        )}
-      </DialogTrigger>
+     <DialogTrigger
+  render={
+    trigger ?? (
+      <Button className="rounded-xl">
+        <Plus className="mr-2 h-4 w-4" />
+        Add Expense
+      </Button>
+    )
+  }
+/>
 
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
@@ -184,7 +186,10 @@ export default function ExpenseDialog({
             <div className="space-y-2">
               <Label>Category</Label>
 
-              <Select value={category} onValueChange={setCategory}>
+             <Select
+  value={category}
+  onValueChange={(value) => setCategory(value ?? "")}
+>
                 <SelectTrigger className="w-full rounded-xl">
                   <SelectValue placeholder="Select category" />
                 </SelectTrigger>

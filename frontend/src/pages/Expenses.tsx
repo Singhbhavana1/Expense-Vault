@@ -119,23 +119,23 @@ export default function Expenses() {
   // UPDATE
   // ---------------------------------------------------------
 
-  const handleUpdateExpense = async (data: {
-    title: string;
-    amount: string;
-    description: string;
-    payment_method: Expense["payment_method"];
-    expense_date: string;
-    category: number | null;
-  }) => {
-    /*
-     * ExpenseDialog passes the expense through its own edit state.
-     * This handler is kept compatible with the existing dialog.
-     *
-     * The dialog's existing implementation should continue calling
-     * updateExpense with the correct expense id.
-     */
-    console.log("Update expense", data);
-  };
+  // const handleUpdateExpense = async (data: {
+  //   title: string;
+  //   amount: string;
+  //   description: string;
+  //   payment_method: Expense["payment_method"];
+  //   expense_date: string;
+  //   category: number | null;
+  // }) => {
+  //   /*
+  //    * ExpenseDialog passes the expense through its own edit state.
+  //    * This handler is kept compatible with the existing dialog.
+  //    *
+  //    * The dialog's existing implementation should continue calling
+  //    * updateExpense with the correct expense id.
+  //    */
+  //   console.log("Update expense", data);
+  // };
 
   // ---------------------------------------------------------
   // DELETE
@@ -318,7 +318,7 @@ export default function Expenses() {
             {/* Category */}
             <Select
               value={categoryFilter}
-              onValueChange={setCategoryFilter}
+              onValueChange={(value) => setCategoryFilter(value ?? "")}
             >
               <SelectTrigger className="h-9 w-full text-xs sm:w-[150px]">
                 <SelectValue placeholder="Category" />
@@ -343,7 +343,7 @@ export default function Expenses() {
             {/* Payment */}
             <Select
               value={paymentFilter}
-              onValueChange={setPaymentFilter}
+              onValueChange={(value) => setPaymentFilter(value ?? "")}
             >
               <SelectTrigger className="h-9 w-full text-xs sm:w-[150px]">
                 <SelectValue placeholder="Payment" />

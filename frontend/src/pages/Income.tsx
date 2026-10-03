@@ -91,7 +91,7 @@ function IncomeDialog({
 }: {
   income?: Income | null;
   onSaved: () => Promise<void>;
-  trigger?: React.ReactNode;
+  trigger?: React.ReactElement;
 }) {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<IncomePayload>(emptyForm);
