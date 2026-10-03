@@ -135,7 +135,7 @@ export default function Login() {
           </div>
 
           <p className="relative text-xs text-slate-500">
-            © {new Date().getFullYear()} ExpenseVault
+            © {new Date().getFullYear()} ExpenseVault - Bhavana Singh
           </p>
         </section>
 
