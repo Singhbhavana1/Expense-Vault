@@ -36,15 +36,15 @@ const menuItems = [
     icon: Tags,
   },
   {
-  title: "Income",
-  href: "/income",
-  icon: Wallet,
-},
-{
-  title: "Reports",
-  href: "/reports",
-  icon: BarChart3,
-},
+    title: "Income",
+    href: "/income",
+    icon: Wallet,
+  },
+  {
+    title: "Reports",
+    href: "/reports",
+    icon: BarChart3,
+  },
   {
     title: "Profile",
     href: "/profile",
@@ -55,14 +55,16 @@ const menuItems = [
 export default function MobileSidebar() {
   return (
     <Sheet>
-      <SheetTrigger asChild>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="rounded-xl lg:hidden"
-        >
-          <Menu className="h-5 w-5" />
-        </Button>
+      <SheetTrigger
+        render={
+          <Button
+            variant="ghost"
+            size="icon"
+            className="rounded-xl lg:hidden"
+          />
+        }
+      >
+        <Menu className="h-5 w-5" />
       </SheetTrigger>
 
       <SheetContent

@@ -7,7 +7,7 @@ import {
 } from "react-router-dom";
 
 import AppLayout from "@/components/layout/AppLayout";
-
+import ForgotPassword from "@/pages/ForgotPassword";
 import Categories from "@/pages/Categories";
 import Dashboard from "@/pages/Dashboard";
 import Expenses from "@/pages/Expenses";
@@ -51,6 +51,7 @@ function App() {
           <Route path="/expenses" element={<Expenses />} />
           <Route path="/categories" element={<Categories />} />
           <Route path="/income" element={<Income />} />
+       
           <Route path="/reports" element={<Reports />} />
           <Route path="/profile" element={<Profile />} />
         </Route>
@@ -60,7 +61,10 @@ function App() {
           path="/"
           element={<Navigate to="/dashboard" replace />}
         />
-
+   <Route
+  path="/forgot-password"
+  element={<ForgotPassword />}
+/>
         {/* Unknown route */}
         <Route
           path="*"

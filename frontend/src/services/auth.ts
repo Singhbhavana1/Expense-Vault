@@ -84,3 +84,36 @@ export const getProfile = async () => {
   const response = await api.get("/auth/profile/");
   return response.data;
 };
+
+
+export const verifyFirebasePhone = async (firebaseToken: string) => {
+  const response = await api.post("/auth/firebase-verify-phone/", {
+    firebase_token: firebaseToken,
+  });
+
+  localStorage.setItem("access_token", response.data.access);
+  localStorage.setItem("refresh_token", response.data.refresh);
+
+  return response.data;
+};
+
+export const resetPasswordWithFirebase = async (
+  firebaseToken: string,
+  newPassword: string
+) => {
+  const response = await api.post("/auth/reset-password/", {
+    firebase_token: firebaseToken,
+    new_password: newPassword,
+  });
+
+  return response.data;
+};
+
+export const deleteAccount = async () => {
+  const response = await api.delete("/auth/profile/delete/");
+
+  localStorage.removeItem("access_token");
+  localStorage.removeItem("refresh_token");
+
+  return response.data;
+};

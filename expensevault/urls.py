@@ -8,6 +8,7 @@ from .views import (
     ExpenseDetailView,
     ExpenseListCreateView,
     IncomeDetailView,
+    FirebasePhoneVerifyView,
     IncomeListCreateView,
     ProfileView,
     RegisterView,
@@ -18,6 +19,7 @@ from .views import (
     ResendOTPView,
     ForgotPasswordView,
     ResetPasswordView,
+    DeleteAccountView,
 )
 
 
@@ -153,5 +155,15 @@ urlpatterns = [
         "income/<int:pk>/",
         IncomeDetailView.as_view(),
         name="income-detail",
+    ),
+    path(
+        "auth/firebase-verify-phone/",
+        FirebasePhoneVerifyView.as_view(),
+        name="firebase-verify-phone",
+    ),
+    path(
+        "auth/profile/delete/",
+        DeleteAccountView.as_view(),
+        name="delete-account",
     ),
 ]

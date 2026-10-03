@@ -1,4 +1,5 @@
 import { useState } from "react";
+
 import {
   Eye,
   EyeOff,
@@ -6,11 +7,13 @@ import {
   Phone,
   ShieldCheck,
 } from "lucide-react";
+
 import { Link, useNavigate } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+
 import { loginUser } from "@/services/auth";
 
 export default function Login() {
@@ -20,6 +23,7 @@ export default function Login() {
   const [password, setPassword] = useState("");
 
   const [showPassword, setShowPassword] = useState(false);
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -76,9 +80,11 @@ export default function Login() {
   return (
     <main className="min-h-screen bg-background">
       <div className="grid min-h-screen lg:grid-cols-[0.9fr_1.1fr]">
+
         {/* Brand panel */}
         <section className="relative hidden overflow-hidden bg-[#101828] p-10 text-white lg:flex lg:flex-col lg:justify-between xl:p-14">
           <div className="absolute -right-32 -top-32 h-80 w-80 rounded-full bg-blue-500/10 blur-3xl" />
+
           <div className="absolute -bottom-32 -left-32 h-80 w-80 rounded-full bg-indigo-500/10 blur-3xl" />
 
           <div className="relative">
@@ -136,6 +142,7 @@ export default function Login() {
         {/* Login */}
         <section className="flex min-h-screen items-center justify-center px-5 py-10 sm:px-8 lg:px-12">
           <div className="w-full max-w-md">
+
             {/* Mobile brand */}
             <div className="mb-12 flex items-center gap-3 lg:hidden">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#101828] text-white dark:bg-white dark:text-[#101828]">
@@ -174,6 +181,7 @@ export default function Login() {
               onSubmit={handleSubmit}
               className="space-y-5"
             >
+
               {/* Mobile */}
               <div className="space-y-2">
                 <Label htmlFor="phone">
@@ -209,11 +217,15 @@ export default function Login() {
                     Password
                   </Label>
 
+                  {/* Forgot Password */}
                   <button
                     type="button"
-                    className="text-xs font-medium text-primary hover:underline"
+                    onClick={() => {
+                      navigate("/forgot-password");
+                    }}
+                    className="text-sm text-primary hover:underline"
                   >
-                    Forgot password?
+                    Forgot Password?
                   </button>
                 </div>
 
@@ -223,7 +235,9 @@ export default function Login() {
                   <Input
                     id="password"
                     type={
-                      showPassword ? "text" : "password"
+                      showPassword
+                        ? "text"
+                        : "password"
                     }
                     autoComplete="current-password"
                     placeholder="Enter your password"
@@ -277,15 +291,19 @@ export default function Login() {
               <div className="h-px flex-1 bg-border" />
             </div>
 
-            <Button
-              asChild
-              variant="outline"
-              className="h-11 w-full"
+            {/* Create Account */}
+            <Link
+              to="/register"
+              className="block w-full"
             >
-              <Link to="/register">
+              <Button
+                type="button"
+                variant="outline"
+                className="h-11 w-full"
+              >
                 Create an account
-              </Link>
-            </Button>
+              </Button>
+            </Link>
 
             <p className="mt-8 text-center text-xs leading-5 text-muted-foreground">
               By continuing, you agree to use ExpenseVault

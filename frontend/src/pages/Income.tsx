@@ -175,14 +175,16 @@ function IncomeDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        {trigger ?? (
-          <Button size="sm">
-            <Plus className="h-4 w-4" />
-            Add Income
-          </Button>
-        )}
-      </DialogTrigger>
+     <DialogTrigger
+  render={
+    trigger ?? (
+      <Button size="sm">
+        <Plus className="h-4 w-4" />
+        Add Income
+      </Button>
+    )
+  }
+/>
 
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>

@@ -13,6 +13,8 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework_simplejwt.views import TokenObtainPairView
+from .utils.firebase import verify_firebase_id_token
+
 from expensevault.utils.otp import (
     create_otp,
     verify_otp,
@@ -36,6 +38,7 @@ from .serializers import (
     # ReportsSerializer,
     CategorySerializer,
     ExpenseSerializer,
+    FirebasePhoneVerifySerializer,
 )
 
 
@@ -343,43 +346,70 @@ class ResetPasswordView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
-        serializer = ResetPasswordSerializer(
-            data=request.data
-        )
+        firebase_token = request.data.get("firebase_token")
+        new_password = request.data.get("new_password")
 
-        serializer.is_valid(raise_exception=True)
+        if not firebase_token:
+            return Response(
+                {"detail": "Firebase verification token is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
-        email = serializer.validated_data["email"].lower()
-        otp = serializer.validated_data["otp"]
-        password = serializer.validated_data["password"]
+        if not new_password:
+            return Response(
+                {"detail": "New password is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
+        if len(new_password) < 8:
+            return Response(
+                {"detail": "Password must be at least 8 characters long."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Verify Firebase OTP session
         try:
-            user = User.objects.get(email=email)
-        except User.DoesNotExist:
+            decoded_token = verify_firebase_id_token(firebase_token)
+        except Exception:
             return Response(
-                {"detail": "Invalid reset request."},
+                {"detail": "Invalid or expired Firebase verification."},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        firebase_phone = decoded_token.get("phone_number")
+
+        if not firebase_phone:
+            return Response(
+                {"detail": "Firebase token does not contain a phone number."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        valid = verify_otp(
-            user=user,
-            otp=otp,
-            purpose="password_reset",
-        )
+        # Firebase gives +91XXXXXXXXXX
+        if firebase_phone.startswith("+91"):
+            phone = firebase_phone[3:]
+        else:
+            phone = firebase_phone.lstrip("+")
 
-        if not valid:
+        User = get_user_model()
+
+        user = User.objects.filter(phone=phone).first()
+
+        if not user:
             return Response(
-                {"detail": "Invalid or expired OTP."},
-                status=status.HTTP_400_BAD_REQUEST,
+                {"detail": "No account found for this mobile number."},
+                status=status.HTTP_404_NOT_FOUND,
             )
 
-        user.set_password(password)
+        # Update Django password
+        user.set_password(new_password)
         user.save(update_fields=["password"])
 
-        return Response({
-            "message": "Password reset successfully."
-        })
-
+        return Response(
+            {
+                "message": "Password reset successfully.",
+            },
+            status=status.HTTP_200_OK,
+        )
 
 class ProfileView(APIView):
     permission_classes = [IsAuthenticated]
@@ -1254,4 +1284,80 @@ class ReportsView(APIView):
 
                 "monthly_trend": monthly_trend,
             }
+        )
+
+class FirebasePhoneVerifyView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = FirebasePhoneVerifySerializer(data=request.data)
+
+        if not serializer.is_valid():
+            return Response(
+                serializer.errors,
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        firebase_token = serializer.validated_data["firebase_token"]
+
+        try:
+            decoded_token = verify_firebase_id_token(firebase_token)
+        except Exception:
+            return Response(
+                {"detail": "Invalid or expired Firebase token."},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        firebase_phone = decoded_token.get("phone_number")
+
+        if not firebase_phone:
+            return Response(
+                {"detail": "Firebase token does not contain a phone number."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if firebase_phone.startswith("+91"):
+            phone = firebase_phone[3:]
+        else:
+            phone = firebase_phone.lstrip("+")
+
+        user = User.objects.filter(phone=phone).first()
+
+        if not user:
+            return Response(
+                {"detail": "No account found for this mobile number."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        user.phone_verified = True
+        user.is_active = True
+        user.save(update_fields=["phone_verified", "is_active"])
+
+        refresh = RefreshToken.for_user(user)
+
+        return Response(
+            {
+                "message": "Mobile number verified successfully.",
+                "phone_verified": True,
+                "account_active": True,
+                "access": str(refresh.access_token),
+                "refresh": str(refresh),
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class DeleteAccountView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request):
+        user = request.user
+
+        user.delete()
+
+        return Response(
+            {
+                "message": "Account deleted successfully."
+            },
+            status=status.HTTP_200_OK,
         )

@@ -379,3 +379,6 @@ class DashboardSerializer(serializers.Serializer):
     recent_transactions = RecentTransactionSerializer(
         many=True,
     )
+
+class FirebasePhoneVerifySerializer(serializers.Serializer):
+    firebase_token = serializers.CharField(required=True)

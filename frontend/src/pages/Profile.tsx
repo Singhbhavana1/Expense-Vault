@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import {
+  AlertTriangle,
   KeyRound,
   Loader2,
   Mail,
   Pencil,
   Phone,
   Save,
+  Trash2,
   UserRound,
   X,
 } from "lucide-react";
@@ -16,7 +18,11 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-import { getProfile } from "@/services/auth";
+import {
+  deleteAccount,
+  getProfile,
+} from "@/services/auth";
+
 import type { User } from "@/types";
 
 type UserWithPhone = User & {
@@ -37,6 +43,9 @@ export default function Profile() {
 
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -136,10 +145,37 @@ export default function Profile() {
 
       setError(
         error?.response?.data?.detail ||
-          "Failed to update profile.",
+          "Failed to update profile."
       );
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    try {
+      setDeleting(true);
+      setError("");
+
+      await deleteAccount();
+
+      // Only Django/ExpenseVault account is deleted.
+      // Firebase Auth user is NOT deleted.
+
+      localStorage.removeItem("access_token");
+      localStorage.removeItem("refresh_token");
+
+      window.location.href = "/register";
+    } catch (error: any) {
+      console.error("Failed to delete account:", error);
+
+      setError(
+        error?.response?.data?.detail ||
+          "Failed to delete account. Please try again."
+      );
+
+      setDeleting(false);
+      setShowDeleteConfirm(false);
     }
   };
 
@@ -236,7 +272,7 @@ export default function Profile() {
       )}
 
       {/* Main profile card */}
-      <Card className="border-border shadow-none mt-4">
+      <Card className="mt-4 border-border shadow-none">
         <CardContent className="p-4">
           {/* Profile overview */}
           <div className="flex items-center gap-3 border-b border-border pb-4">
@@ -284,64 +320,46 @@ export default function Profile() {
             {editing ? (
               <div className="grid grid-cols-2 gap-x-4 gap-y-3">
                 <div className="space-y-1">
-                  <Label
-                    htmlFor="first-name"
-                    className="text-[11px]"
-                  >
+                  <Label htmlFor="first-name" className="text-[11px]">
                     First Name
                   </Label>
 
                   <Input
                     id="first-name"
                     value={firstName}
-                    onChange={(e) =>
-                      setFirstName(e.target.value)
-                    }
+                    onChange={(e) => setFirstName(e.target.value)}
                     className="h-8 text-sm"
                   />
                 </div>
 
                 <div className="space-y-1">
-                  <Label
-                    htmlFor="last-name"
-                    className="text-[11px]"
-                  >
+                  <Label htmlFor="last-name" className="text-[11px]">
                     Last Name
                   </Label>
 
                   <Input
                     id="last-name"
                     value={lastName}
-                    onChange={(e) =>
-                      setLastName(e.target.value)
-                    }
+                    onChange={(e) => setLastName(e.target.value)}
                     className="h-8 text-sm"
                   />
                 </div>
 
                 <div className="space-y-1">
-                  <Label
-                    htmlFor="username"
-                    className="text-[11px]"
-                  >
+                  <Label htmlFor="username" className="text-[11px]">
                     Username
                   </Label>
 
                   <Input
                     id="username"
                     value={username}
-                    onChange={(e) =>
-                      setUsername(e.target.value)
-                    }
+                    onChange={(e) => setUsername(e.target.value)}
                     className="h-8 text-sm"
                   />
                 </div>
 
                 <div className="space-y-1">
-                  <Label
-                    htmlFor="phone"
-                    className="text-[11px]"
-                  >
+                  <Label htmlFor="phone" className="text-[11px]">
                     Mobile Number
                   </Label>
 
@@ -353,9 +371,7 @@ export default function Profile() {
                     value={phone}
                     placeholder="10-digit mobile"
                     onChange={(e) =>
-                      setPhone(
-                        e.target.value.replace(/\D/g, ""),
-                      )
+                      setPhone(e.target.value.replace(/\D/g, ""))
                     }
                     className="h-8 text-sm"
                   />
@@ -468,8 +484,93 @@ export default function Profile() {
               Reset Password
             </Button>
           </div>
+
+          {/* Delete Account */}
+          <div className="mt-4 flex items-center justify-between border-t border-red-200 pt-4 dark:border-red-900/50">
+            <div className="flex items-center gap-2.5">
+              <div className="flex h-8 w-8 items-center justify-center bg-red-50 dark:bg-red-950/30">
+                <Trash2 className="h-4 w-4 text-red-600 dark:text-red-400" />
+              </div>
+
+              <div>
+                <p className="text-sm font-medium text-red-600 dark:text-red-400">
+                  Delete Account
+                </p>
+
+                <p className="text-[11px] text-muted-foreground">
+                  Permanently delete your ExpenseVault account and data
+                </p>
+              </div>
+            </div>
+
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-950/30"
+              onClick={() => {
+                setError("");
+                setSuccess("");
+                setShowDeleteConfirm(true);
+              }}
+              disabled={deleting}
+            >
+              <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+              Delete
+            </Button>
+          </div>
         </CardContent>
       </Card>
+
+      {/* Delete confirmation dialog */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+          <div className="w-full max-w-md rounded-lg border bg-background p-5 shadow-xl">
+            <div className="flex items-start gap-3">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-red-50 dark:bg-red-950/30">
+                <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400" />
+              </div>
+
+              <div>
+                <h2 className="text-base font-semibold">
+                  Delete your account?
+                </h2>
+
+                <p className="mt-1 text-sm text-muted-foreground">
+                  This will permanently delete your ExpenseVault account
+                  and its data. This action cannot be undone.
+                </p>
+
+                <p className="mt-2 text-xs font-medium text-red-600 dark:text-red-400">
+                  Your Firebase Auth account will NOT be deleted.
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-5 flex justify-end gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowDeleteConfirm(false)}
+                disabled={deleting}
+              >
+                Cancel
+              </Button>
+
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={handleDeleteAccount}
+                disabled={deleting}
+              >
+                {deleting && (
+                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                )}
+                {deleting ? "Deleting..." : "Yes, Delete Account"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

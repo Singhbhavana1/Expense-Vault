@@ -1,4 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import type { ConfirmationResult } from "firebase/auth";
+
 import {
   ArrowLeft,
   ArrowRight,
@@ -10,6 +12,7 @@ import {
   Smartphone,
   UserRound,
 } from "lucide-react";
+
 import { Link, useNavigate } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
@@ -18,10 +21,15 @@ import { Label } from "@/components/ui/label";
 
 import {
   registerUser,
-  resendPhoneOTP,
-  verifyPhoneOTP,
+  verifyFirebasePhone,
   type RegisterData,
 } from "@/services/auth";
+
+import {
+  clearRecaptcha,
+  sendFirebaseOTP,
+  verifyFirebaseOTP,
+} from "@/services/firebaseAuth";
 
 type Step = 1 | 2 | 3;
 
@@ -51,6 +59,8 @@ export default function Register() {
 
   const [resendTimer, setResendTimer] = useState(0);
 
+  const confirmationResultRef = useRef<ConfirmationResult | null>(null);
+
   const updateField = (
     field: keyof RegisterData,
     value: string,
@@ -72,6 +82,12 @@ export default function Register() {
 
     return () => window.clearInterval(timer);
   }, [resendTimer]);
+
+  useEffect(() => {
+    return () => {
+      clearRecaptcha();
+    };
+  }, []);
 
   const handleNext = () => {
     setError("");
@@ -101,11 +117,6 @@ export default function Register() {
 
     setError("");
 
-    if (!form.email.trim()) {
-      setError("Please enter your email.");
-      return;
-    }
-
     if (!form.phone.trim()) {
       setError("Please enter your mobile number.");
       return;
@@ -113,13 +124,13 @@ export default function Register() {
 
     const normalizedPhone = form.phone.replace(/\D/g, "");
 
-    if (normalizedPhone.length < 10) {
-      setError("Please enter a valid mobile number.");
+    if (normalizedPhone.length !== 10) {
+      setError("Please enter a valid 10-digit mobile number.");
       return;
     }
 
-    if (form.password.length < 6) {
-      setError("Password must contain at least 6 characters.");
+    if (form.password.length < 8) {
+      setError("Password must contain at least 8 characters.");
       return;
     }
 
@@ -131,8 +142,10 @@ export default function Register() {
     try {
       setLoading(true);
 
+      // First create the inactive Django account.
       await registerUser({
         ...form,
+        email: form.email.trim(),
         phone: normalizedPhone,
       });
 
@@ -141,15 +154,29 @@ export default function Register() {
         phone: normalizedPhone,
       }));
 
+      // Firebase sends the actual SMS OTP.
+      const confirmationResult = await sendFirebaseOTP(
+        normalizedPhone,
+      );
+
+      confirmationResultRef.current = confirmationResult;
+
       setOtp("");
       setResendTimer(30);
       setStep(3);
     } catch (err: any) {
       console.error(err);
 
+      const firebaseError = err?.code;
       const data = err?.response?.data;
 
-      if (data?.email?.[0]) {
+      if (firebaseError === "auth/invalid-phone-number") {
+        setError("Please enter a valid mobile number.");
+      } else if (firebaseError === "auth/too-many-requests") {
+        setError(
+          "Too many OTP requests. Please try again later.",
+        );
+      } else if (data?.email?.[0]) {
         setError(data.email[0]);
       } else if (data?.phone?.[0]) {
         setError(data.phone[0]);
@@ -169,60 +196,90 @@ export default function Register() {
     }
   };
 
- const handleVerifyOTP = async (
-  event: React.FormEvent<HTMLFormElement>,
-) => {
-  event.preventDefault();
+  const handleVerifyOTP = async (
+    event: React.FormEvent<HTMLFormElement>,
+  ) => {
+    event.preventDefault();
 
-  setError("");
+    setError("");
 
-  if (!otp.trim()) {
-    setError("Please enter the OTP.");
-    return;
-  }
-
-  if (!/^\d{6}$/.test(otp)) {
-    setError("OTP must contain 6 digits.");
-    return;
-  }
-
-  try {
-    setLoading(true);
-
-    const response = await verifyPhoneOTP(
-      form.phone,
-      otp,
-    );
-    console.log("OTP VERIFY RESPONSE:", response);
-    localStorage.setItem(
-      "access_token",
-      response.access!,
-    );
-
-    localStorage.setItem(
-      "refresh_token",
-      response.refresh!,
-    );
-
-    navigate("/dashboard", {
-      replace: true,
-    });
-  } catch (err: any) {
-    console.error(err);
-
-    const data = err?.response?.data;
-
-    if (data?.detail) {
-      setError(data.detail);
-    } else if (data?.otp?.[0]) {
-      setError(data.otp[0]);
-    } else {
-      setError("Invalid or expired OTP. Please try again.");
+    if (!otp.trim()) {
+      setError("Please enter the OTP.");
+      return;
     }
-  } finally {
-    setLoading(false);
-  }
-};
+
+    if (!/^\d{6}$/.test(otp)) {
+      setError("OTP must contain 6 digits.");
+      return;
+    }
+
+    if (!confirmationResultRef.current) {
+      setError(
+        "OTP session expired. Please request a new OTP.",
+      );
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      // Firebase verifies the OTP.
+      const firebaseToken = await verifyFirebaseOTP(
+        confirmationResultRef.current,
+        otp,
+      );
+
+      // Django verifies the Firebase ID token.
+      const response = await verifyFirebasePhone(firebaseToken);
+
+      console.log(
+        "Firebase phone verification response:",
+        response,
+      );
+
+      localStorage.setItem(
+        "access_token",
+        response.access,
+      );
+
+      localStorage.setItem(
+        "refresh_token",
+        response.refresh,
+      );
+
+      navigate("/dashboard", {
+        replace: true,
+      });
+    } catch (err: any) {
+      console.error(err);
+
+      const firebaseError = err?.code;
+      const data = err?.response?.data;
+
+      if (
+        firebaseError ===
+        "auth/invalid-verification-code"
+      ) {
+        setError(
+          "Invalid OTP. Please check the code and try again.",
+        );
+      } else if (
+        firebaseError === "auth/code-expired"
+      ) {
+        setError(
+          "OTP has expired. Please request a new OTP.",
+        );
+      } else if (data?.detail) {
+        setError(data.detail);
+      } else {
+        setError(
+          "Invalid or expired OTP. Please try again.",
+        );
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleResendOTP = async () => {
     if (resendTimer > 0 || resending) {
@@ -233,19 +290,29 @@ export default function Register() {
       setResending(true);
       setError("");
 
-      await resendPhoneOTP(form.phone);
+      clearRecaptcha();
+
+      const confirmationResult = await sendFirebaseOTP(
+        form.phone,
+      );
+
+      confirmationResultRef.current = confirmationResult;
 
       setOtp("");
       setResendTimer(30);
     } catch (err: any) {
       console.error(err);
 
-      const data = err?.response?.data;
-
-      if (data?.detail) {
-        setError(data.detail);
+      if (
+        err?.code === "auth/too-many-requests"
+      ) {
+        setError(
+          "Too many OTP requests. Please try again later.",
+        );
       } else {
-        setError("Unable to resend OTP. Please try again.");
+        setError(
+          "Unable to resend OTP. Please try again.",
+        );
       }
     } finally {
       setResending(false);
@@ -258,14 +325,20 @@ export default function Register() {
 
   return (
     <main className="min-h-screen bg-background">
+      <div id="recaptcha-container" />
+
       <div className="grid min-h-screen lg:grid-cols-[1.1fr_0.9fr]">
+
         {/* Left */}
         <section className="flex min-h-screen items-center justify-center px-5 py-10 sm:px-8 lg:px-12 xl:px-20">
           <div className="w-full max-w-lg">
+
             {/* Brand */}
             <div className="mb-10 flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#101828] text-white dark:bg-white dark:text-[#101828]">
-                <span className="text-lg font-bold">E</span>
+                <span className="text-lg font-bold">
+                  E
+                </span>
               </div>
 
               <span className="text-lg font-semibold tracking-tight">
@@ -275,6 +348,7 @@ export default function Register() {
 
             {/* Progress */}
             <div className="mb-10 flex items-center gap-3">
+
               <div
                 className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold ${
                   step >= 1
@@ -291,7 +365,9 @@ export default function Register() {
 
               <div
                 className={`h-px w-10 ${
-                  step >= 2 ? "bg-primary" : "bg-border"
+                  step >= 2
+                    ? "bg-primary"
+                    : "bg-border"
                 }`}
               />
 
@@ -311,7 +387,9 @@ export default function Register() {
 
               <div
                 className={`h-px w-10 ${
-                  step >= 3 ? "bg-primary" : "bg-border"
+                  step >= 3
+                    ? "bg-primary"
+                    : "bg-border"
                 }`}
               />
 
@@ -369,7 +447,9 @@ export default function Register() {
             {/* STEP 1 */}
             {step === 1 && (
               <div className="space-y-5">
+
                 <div className="grid gap-4 sm:grid-cols-2">
+
                   <div className="space-y-2">
                     <Label htmlFor="first_name">
                       First name
@@ -407,10 +487,13 @@ export default function Register() {
                       className="h-11"
                     />
                   </div>
+
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="username">Username</Label>
+                  <Label htmlFor="username">
+                    Username
+                  </Label>
 
                   <div className="relative">
                     <UserRound className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -447,8 +530,11 @@ export default function Register() {
                 onSubmit={handleRegister}
                 className="space-y-5"
               >
+
                 <div className="space-y-2">
-                  <Label htmlFor="email">Email address</Label>
+                  <Label htmlFor="email">
+                    Email address
+                  </Label>
 
                   <div className="relative">
                     <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -468,6 +554,10 @@ export default function Register() {
                       className="h-11 pl-10"
                     />
                   </div>
+
+                  <p className="text-xs text-muted-foreground">
+                    Email is required.
+                  </p>
                 </div>
 
                 <div className="space-y-2">
@@ -505,7 +595,9 @@ export default function Register() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="password">Password</Label>
+                  <Label htmlFor="password">
+                    Password
+                  </Label>
 
                   <div className="relative">
                     <LockKeyhole className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -513,9 +605,11 @@ export default function Register() {
                     <Input
                       id="password"
                       type={
-                        showPassword ? "text" : "password"
+                        showPassword
+                          ? "text"
+                          : "password"
                       }
-                      placeholder="At least 6 characters"
+                      placeholder="At least 8 characters"
                       value={form.password}
                       onChange={(event) =>
                         updateField(
@@ -589,6 +683,7 @@ export default function Register() {
                 </div>
 
                 <div className="flex gap-3">
+
                   <Button
                     type="button"
                     variant="outline"
@@ -608,9 +703,10 @@ export default function Register() {
                     className="h-11 flex-[2]"
                   >
                     {loading
-                      ? "Creating..."
+                      ? "Sending OTP..."
                       : "Create account"}
                   </Button>
+
                 </div>
               </form>
             )}
@@ -621,6 +717,7 @@ export default function Register() {
                 onSubmit={handleVerifyOTP}
                 className="space-y-5"
               >
+
                 <div className="flex justify-center">
                   <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary/10 text-primary">
                     <Smartphone className="h-6 w-6" />
@@ -650,26 +747,31 @@ export default function Register() {
                   />
 
                   <p className="text-center text-xs text-muted-foreground">
-                    Enter the 6-digit code sent to your mobile
-                    number.
+                    Enter the 6-digit code sent to your
+                    mobile number.
                   </p>
                 </div>
 
                 <Button
                   type="submit"
-                  disabled={loading || otp.length !== 6}
+                  disabled={
+                    loading || otp.length !== 6
+                  }
                   className="h-11 w-full"
                 >
                   {loading
                     ? "Verifying..."
                     : "Verify mobile"}
+
                   <Check className="ml-2 h-4 w-4" />
                 </Button>
 
                 <div className="text-center">
                   <button
                     type="button"
-                    disabled={resendTimer > 0 || resending}
+                    disabled={
+                      resendTimer > 0 || resending
+                    }
                     onClick={handleResendOTP}
                     className="text-sm font-medium text-primary disabled:cursor-not-allowed disabled:text-muted-foreground"
                   >
@@ -686,6 +788,9 @@ export default function Register() {
                   variant="ghost"
                   className="h-10 w-full"
                   onClick={() => {
+                    clearRecaptcha();
+                    confirmationResultRef.current =
+                      null;
                     setError("");
                     setOtp("");
                     setStep(2);
@@ -694,14 +799,13 @@ export default function Register() {
                   <ArrowLeft className="mr-2 h-4 w-4" />
                   Change details
                 </Button>
+
               </form>
             )}
 
-            {/* Success */}
-            {step === 3 && false && null}
-
             <p className="mt-8 text-center text-sm text-muted-foreground">
               Already have an account?{" "}
+
               <Link
                 to="/login"
                 className="font-medium text-foreground underline-offset-4 hover:underline"
@@ -709,14 +813,53 @@ export default function Register() {
                 Sign in
               </Link>
             </p>
+
           </div>
         </section>
 
         {/* Right panel */}
         <section className="relative hidden overflow-hidden bg-[#101828] p-12 text-white lg:flex lg:flex-col lg:justify-center xl:p-20">
+<div className="rounded-xl border border-blue-200 bg-black border-orange-500 p-4 dark:border-yellow-500 0 mb-6">
+  <div className="flex items-start gap-3">
+    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-600 text-white">
+      <Smartphone className="h-4 w-4" />
+    </div>
+
+    <div className="min-w-0">
+      <p className="text-sm font-semibold text-blue-900 dark:text-blue-100">
+        🧪 Test Account
+      </p>
+
+      <p className="mt-1 text-xs text-blue-700 dark:text-blue-300">
+        For testing Firebase phone verification, use:
+      </p>
+
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        <div className="rounded-lg border border-blue-200 bg-white px-3 py-2 dark:border-blue-800 dark:bg-blue-950">
+          <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+            Mobile
+          </p>
+          <p className="mt-0.5 text-sm font-bold tracking-wide text-blue-700 dark:text-blue-300">
+            9090909090
+          </p>
+        </div>
+
+        <div className="rounded-lg border border-blue-200 bg-white px-3 py-2 dark:border-blue-800 dark:bg-blue-950">
+          <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+            OTP
+          </p>
+          <p className="mt-0.5 text-sm font-bold tracking-wide text-blue-700 dark:text-blue-300">
+            000000
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
           <div className="absolute right-0 top-0 h-[500px] w-[500px] translate-x-1/3 -translate-y-1/3 rounded-full bg-blue-500/10 blur-3xl" />
 
           <div className="relative max-w-md">
+
             <p className="text-sm font-medium text-blue-300">
               YOUR PRIVATE FINANCIAL SPACE
             </p>
@@ -741,8 +884,11 @@ export default function Register() {
                 Just the information you need.
               </p>
             </div>
+            
+
           </div>
         </section>
+
       </div>
     </main>
   );
